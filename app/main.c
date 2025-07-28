@@ -45,10 +45,23 @@
 //引用心率服务和设备信息服务头文件
 #include "my_ble_hrs.h"
 #include "my_ble_dis.h"
+//#include "hal_rng.h"
+#include "mpu6050.h"
+#include "max30102.h"
+
+#if mpu6050_en == 1
+    static int16_t AccValue[3] = {0};
+
+#endif
+
+#if max30102_en == 1
+    static uint32_t ir_value = 233;
+    static uint32_t red_value = 333;
+#endif
 
 #define MANUFACTURER_NAME               "AlTAIRX"                           // 制造商名称字符串
-// #define DEVICE_NAME                     "AltairX-HeartRing"                     // 设备名称字符串 
-#define DEVICE_NAME                     "AltairX-ssss"                     // 设备名称字符串 
+#define DEVICE_NAME                     "AltairX-HeartRing"                     // 设备名称字符串 
+// #define DEVICE_NAME                     "AltairX-ssss"                     // 设备名称字符串 
 #define MIN_CONN_INTERVAL               MSEC_TO_UNITS(100, UNIT_1_25_MS)   // 最小连接间隔 (0.1 秒) 
 #define MAX_CONN_INTERVAL               MSEC_TO_UNITS(200, UNIT_1_25_MS)   // 最大连接间隔 (0.2 秒) 
 #define SLAVE_LATENCY                   0                                  // 从机延迟 
@@ -84,7 +97,9 @@ static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;
 APP_TIMER_DEF(m_heart_rate_timer_id);   
 //定义传感器接触状态更新APP定时器m_sensor_contact_update_timer_id
 APP_TIMER_DEF(m_sensor_contact_update_timer_id);  
-
+///////////////////////////
+APP_TIMER_DEF(m_get_data_from_sensor);  
+/////////////////////////
 //定义心率服务实例
 BLE_HRS_DEF(m_hrs);                                               
 
@@ -403,14 +418,35 @@ static void power_management_init(void)
     APP_ERROR_CHECK(err_code);
 }
 //心率测量定时器事件回调函数
+
 static void heart_rate_timeout_handler(void * p_context)
 {
     ret_code_t      err_code;
     uint16_t        heart_rate;
 
+
     UNUSED_PARAMETER(p_context);
     //心率值写死为：270bpm
-    heart_rate = 270;
+    ////test
+#if mpu6050_en == 1
+    // static int16_t AccValue[3] = {0};
+    // MPU6050_ReadAcc( &AccValue[0], &AccValue[1] , &AccValue[2]);
+    heart_rate = (uint16_t)(AccValue[2] + AccValue[1] + AccValue[0]) / 3;
+#endif
+
+#if max30102_en == 1
+    // static uint32_t ir_value = 233;
+    // static uint32_t red_value = 333;
+    // MAX30102_Read_FIFO(&red_value, &ir_value);
+    heart_rate = (uint16_t)((ir_value + red_value) / 200);
+#endif
+
+
+
+
+    // heart_rate = 270;
+    /////end of test
+    
     // printf("heart_rate: %d\n", heart_rate);
     // NRF_LOG_INFO("heart_rate: %d\n", heart_rate);
     //发送心率测量值
@@ -436,6 +472,25 @@ static void sensor_contact_update_timeout_handler(void * p_context)
 	  //设置传感器接触状态
     ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
 }
+
+static void get_data_from_sensor_handler(void * p_context)
+{
+    
+    UNUSED_PARAMETER(p_context);
+    #if mpu6050_en == 1
+    // static int16_t AccValue[3] = {0};
+    // MPU6050_ReadAcc( &AccValue[0], &AccValue[1] , &AccValue[2]);
+    // heart_rate = (uint16_t)(AccValue[2] + AccValue[1] + AccValue[0]) / 3;
+#endif
+
+#if max30102_en == 1
+    // static uint32_t ir_value = 233;
+    // static uint32_t red_value = 333;
+    // MAX30102_Read_FIFO(&red_value, &ir_value);
+    // heart_rate = (uint16_t)(ir_value + red_value) / 200;
+#endif
+}
+
 
 //初始化指示灯
 static void leds_init(void)
@@ -463,6 +518,11 @@ static void timers_init(void)
 	  err_code = app_timer_create(&m_sensor_contact_update_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 sensor_contact_update_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+    ///////////////////
+    	  err_code = app_timer_create(&m_get_data_from_sensor,
+                                APP_TIMER_MODE_REPEATED,
+                                get_data_from_sensor_handler);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -505,11 +565,23 @@ static void application_timers_start(void)
 	  //检查函数返回的错误代码
     APP_ERROR_CHECK(err_code);
 
+    ////////////////////////////////////////////////
+    err_code = app_timer_start(m_get_data_from_sensor, SENSOR_CONTACT_UPDATE_INTERVAL, NULL);
+	  //检查函数返回的错误代码
+    APP_ERROR_CHECK(err_code);
+
 }
 
 //////////////////led red
+
+#if test_on_board == 1 //TEST
+#define RED        NRF_GPIO_PIN_MAP(0,12)//testtest
+
+#else
 #define RED        NRF_GPIO_PIN_MAP(0,6)//real
-// #define RED        NRF_GPIO_PIN_MAP(0,12)//testtest
+
+#endif
+
 void red_on(void)
 {
     nrf_gpio_pin_set(RED);
@@ -519,6 +591,16 @@ void red_off(void)
     nrf_gpio_pin_clear(RED);
 }
 
+///////////////////i2c(twi)
+#if mpu6050_en == 1
+
+
+#endif
+
+#if max30102_en == 1
+
+#endif
+
 
 
 
@@ -527,16 +609,18 @@ int main(void)
 {
 	//初始化log程序模块
 	log_init();
+    //  //初始化串口
+    // uart_config();
+
+
+
 	//初始化APP定时器
 	timers_init();
 	//出使唤按键和指示灯
   leds_init();
     
-    //gpio on
-    // red_off();
-    red_on();
-	
-	
+
+
 	//初始化电源管理
 	power_management_init();
 	//初始化协议栈
@@ -557,9 +641,50 @@ int main(void)
 	application_timers_start();
 	//启动广播
 	advertising_start();
+        //gpio on
+    nrf_gpio_cfg_output(RED);
+    red_on();
+    red_off();
+    red_on();
   //主循环
+    ///////////////////i2c(twi)
+#if mpu6050_en == 1
+//初始化TWI
+	mpu6050_twi_master_init();
 
+	//上电服务前延时，否则数据可能会出错
+	nrf_delay_ms(2000);
+  //初始化mpu6060，初始化过程中会验证mpu6050的ID
+  while(mpu6050_init() == false)
+	{
+		NRF_LOG_INFO("mpu6050 init fail\r\n");
+		nrf_delay_ms(800);
+	}
+  NRF_LOG_INFO("mpu6050 init sucess\r\n");
+	
+  //LOG打印启动信息
+  NRF_LOG_INFO("mpu6050 example started");	
 
+#endif
+
+#if max30102_en == 1
+//初始化TWI
+	max30102_twi_master_init();
+  	//上电服务前延时，否则数据可能会出错
+	nrf_delay_ms(2000);
+  //初始化max30102，初始化过程中会验证max30102的ID
+  while(MAX30102_Init() == false)
+	{
+		NRF_LOG_INFO("max30102 init fail\r\n");
+		nrf_delay_ms(800);
+	}
+  NRF_LOG_INFO("max30102 init sucess\r\n");
+	
+  //LOG打印启动信息
+  NRF_LOG_INFO("max30102 example started");	
+#endif
+	
+	NRF_LOG_FLUSH();
   //gpio on
 //   red_on();
 

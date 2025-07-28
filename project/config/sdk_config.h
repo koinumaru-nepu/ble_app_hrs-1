@@ -46,6 +46,23 @@
 #ifdef USE_APP_CONFIG
 #include "app_config.h"
 #endif
+
+// #define mpu6050_en 1
+// #define max30102_en 1
+
+
+#define test_on_board 0
+
+#if test_on_board == 0
+#define mpu6050_en 0
+#define max30102_en 1
+
+#else
+#define mpu6050_en 1
+#define max30102_en 0
+
+#endif
+
 // <h> Board Support 
 
 //==========================================================
@@ -3486,13 +3503,13 @@
 // <e> NRFX_TWIM_ENABLED - nrfx_twim - TWIM peripheral driver
 //==========================================================
 #ifndef NRFX_TWIM_ENABLED
-#define NRFX_TWIM_ENABLED 0
+#define NRFX_TWIM_ENABLED 1
 #endif
 // <q> NRFX_TWIM0_ENABLED  - Enable TWIM0 instance
  
 
 #ifndef NRFX_TWIM0_ENABLED
-#define NRFX_TWIM0_ENABLED 0
+#define NRFX_TWIM0_ENABLED 1
 #endif
 
 // <o> NRFX_TWIM_DEFAULT_CONFIG_FREQUENCY  - Frequency
@@ -3711,7 +3728,7 @@
 // <e> NRFX_TWI_ENABLED - nrfx_twi - TWI peripheral driver
 //==========================================================
 #ifndef NRFX_TWI_ENABLED
-#define NRFX_TWI_ENABLED 0
+#define NRFX_TWI_ENABLED 1
 #endif
 // <q> NRFX_TWI0_ENABLED  - Enable TWI0 instance
  
@@ -5102,7 +5119,7 @@
 // <e> TWI_ENABLED - nrf_drv_twi - TWI/TWIM peripheral driver - legacy layer
 //==========================================================
 #ifndef TWI_ENABLED
-#define TWI_ENABLED 0
+#define TWI_ENABLED 1
 #endif
 // <o> TWI_DEFAULT_CONFIG_FREQUENCY  - Frequency
  
@@ -5148,13 +5165,13 @@
 // <e> TWI0_ENABLED - Enable TWI0 instance
 //==========================================================
 #ifndef TWI0_ENABLED
-#define TWI0_ENABLED 0
+#define TWI0_ENABLED 1
 #endif
 // <q> TWI0_USE_EASY_DMA  - Use EasyDMA (if present)
  
 
 #ifndef TWI0_USE_EASY_DMA
-#define TWI0_USE_EASY_DMA 0
+#define TWI0_USE_EASY_DMA 1
 #endif
 
 // </e>
